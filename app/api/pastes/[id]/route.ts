@@ -12,9 +12,9 @@ type Paste = {
 
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> } 
 ): Promise<Response> {
-  const { id } = context.params;
+  const { id } = await context.params; 
 
   const paste = await kv.get<Paste>(`paste:${id}`);
 
