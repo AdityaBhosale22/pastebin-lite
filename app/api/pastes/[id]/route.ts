@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import kv from "@/lib/kv";
 
 type Paste = {
@@ -11,10 +11,10 @@ type Paste = {
 };
 
 export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params;
+  const { id } = await context.params;
 
   const key = `paste:${id}`;
 
@@ -29,7 +29,7 @@ export async function GET(
 
   const now =
     process.env.TEST_MODE === "1"
-      ? Number(_req.headers.get("x-test-now-ms")) || Date.now()
+      ? Number(req.headers.get("x-test-now-ms")) || Date.now()
       : Date.now();
 
   if (paste.expiresAt && now > paste.expiresAt) {
