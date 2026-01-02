@@ -1,4 +1,4 @@
-import { NextResponse, NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import kv from "@/lib/kv";
 
 type Paste = {
@@ -11,60 +11,41 @@ type Paste = {
 };
 
 export async function GET(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const { id } = await context.params;
+  request: NextRequest,
+  context: { params: { id: string } }
+): Promise<Response> {
+  const { id } = context.params;
 
-  const key = `paste:${id}`;
-
-  const paste = await kv.get<Paste>(key);
+  const paste = await kv.get<Paste>(`paste:${id}`);
 
   if (!paste) {
-    return NextResponse.json(
-      { error: "Paste not found" },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const now =
     process.env.TEST_MODE === "1"
-      ? Number(req.headers.get("x-test-now-ms")) || Date.now()
+      ? Number(request.headers.get("x-test-now-ms")) || Date.now()
       : Date.now();
 
   if (paste.expiresAt && now > paste.expiresAt) {
-    return NextResponse.json(
-      { error: "Paste expired" },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "Expired" }, { status: 404 });
   }
 
-  if (
-    paste.maxViews !== null &&
-    paste.viewsUsed >= paste.maxViews
-  ) {
-    return NextResponse.json(
-      { error: "View limit exceeded" },
-      { status: 404 }
-    );
+  if (paste.maxViews !== null && paste.viewsUsed >= paste.maxViews) {
+    return NextResponse.json({ error: "View limit exceeded" }, { status: 404 });
   }
 
   paste.viewsUsed += 1;
-  await kv.set(key, paste);
+  await kv.set(`paste:${id}`, paste);
 
-  const remainingViews =
-    paste.maxViews !== null
-      ? Math.max(paste.maxViews - paste.viewsUsed, 0)
-      : null;
-
-  return NextResponse.json(
-    {
-      content: paste.content,
-      remaining_views: remainingViews,
-      expires_at: paste.expiresAt
-        ? new Date(paste.expiresAt).toISOString()
+  return NextResponse.json({
+    content: paste.content,
+    remaining_views:
+      paste.maxViews !== null
+        ? Math.max(paste.maxViews - paste.viewsUsed, 0)
         : null,
-    },
-    { status: 200 }
-  );
+    expires_at: paste.expiresAt
+      ? new Date(paste.expiresAt).toISOString()
+      : null,
+  });
 }
